@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+from dotenv import load_dotenv
+load_dotenv()
 """
 Grocery Price Sentinel
 Monitors prices from Jayagrocer Malaysia and sends Telegram alerts on price changes.
@@ -51,21 +52,24 @@ class GroceryPriceSentinel:
         
         # Google Sheets configuration
         self.sheets_id = os.getenv("GOOGLE_SHEETS_ID")
-        self.sheets_tab = os.getenv("GOOGLE_SHEETS_TAB") or "Sheet1"
-        sheets_creds_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-        if not self.sheets_id or not sheets_creds_json:
-            raise ValueError("GOOGLE_SHEETS_ID and GOOGLE_SERVICE_ACCOUNT_JSON must be set")
+        self.sheets_tab = "Sheet1"
         
-        # Initialize Google Sheets client
+        if not self.sheets_id:
+            raise ValueError("GOOGLE_SHEETS_ID must be set")
+        
         try:
-            creds_dict = json.loads(sheets_creds_json)
+            with open("price-sentinel-487106-d7764ac80754.json", "r") as f:
+                creds_dict = json.load(f)
+            
             creds = Credentials.from_service_account_info(
                 creds_dict,
                 scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
             )
+
             self.gc = gspread.authorize(creds)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
+        
+        except Exception as e:
+            raise ValueError(f"Error initializing Google Sheets client: {e}")
         
         # Price change threshold (minimum percentage change to trigger alert)
         min_pct_str = os.getenv("MIN_PCT_CHANGE")
@@ -83,9 +87,14 @@ class GroceryPriceSentinel:
             skipped_count = 0
             
             for row in rows:
-                item_name = row.get("item", "").strip()
-                url = row.get("URL", "").strip()
-                
+                item_name = str(row.get("item", "")).strip()
+                raw_url = row.get("url")
+
+                if raw_url is None:
+                    raw_url = ""
+
+                url = str(raw_url).strip()
+
                 if not url:
                     logger.warning(f"Skipping row with missing URL: {row}")
                     skipped_count += 1
@@ -158,42 +167,24 @@ class GroceryPriceSentinel:
                     
                     soup = BeautifulSoup(result.html, 'html.parser')
                     
-                    # Try to find price text
-                    price_text = None
-                    for selector in price_selectors:
-                        elements = soup.select(selector)
-                        if elements:
-                            price_text = elements[0].get_text(strip=True)
-                            break
-                    
-                    # If no selector worked, search for RM pattern in text
-                    if not price_text:
-                        # Look for patterns like "RM 10.50" or "RM10.50" or "10.50"
-                        price_pattern = r'RM\s*(\d+\.?\d*)|\b(\d+\.?\d*)\s*RM'
-                        matches = re.findall(price_pattern, result.html, re.IGNORECASE)
-                        if matches:
-                            # Get the first match, prefer the first group
-                            price_text = matches[0][0] if matches[0][0] else matches[0][1]
-                    
-                    if not price_text:
-                        logger.warning(f"Could not find price on page: {url}")
+                    h1 = soup.find("h1")
+
+                    if not h1:
+                        logger.warning("No H1 product title found")
                         return None
                     
-                    # Extract numeric value
-                    # Remove currency symbols and extract numbers
-                    numbers = re.findall(r'\d+\.?\d*', price_text.replace(',', ''))
-                    if numbers:
-                        try:
-                            price_value = Decimal(numbers[0])
-                            logger.info(f"Found price: RM {price_value} for {url}")
-                            return price_value
-                        except (ValueError, Exception) as e:
-                            logger.warning(f"Could not parse price '{price_text}': {e}")
-                            return None
-                    
-                    logger.warning(f"Could not extract price from text: {price_text}")
-                    return None
-            
+                    price_el = h1.find_next("span",class_="price")
+
+                    if not price_el:
+                        logger.warning(f"No price found after H1 for {url}")
+                        return None
+
+                    raw_price = price_el.get_text(strip=True)
+                    price_text = raw_price.replace("RM", "").replace(",", "").strip()
+
+                    return Decimal(price_text)
+
+
             # Run async function
             import asyncio
             return asyncio.run(scrape_price())
