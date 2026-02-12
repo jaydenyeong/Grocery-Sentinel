@@ -125,6 +125,9 @@ class GroceryPriceSentinel:
                             "url": url
                         }).execute()
                         logger.info(f"Added new product: {item_name} ({url})")
+
+                        # Telegram alert for new product
+                        self.send_new_product_alert(item_name, url)
                     
                     synced_count += 1
                 except Exception as e:
@@ -150,20 +153,6 @@ class GroceryPriceSentinel:
                         logger.warning(f"Failed to fetch page: {url}")
                         return None
                     
-                    # Try multiple common price selectors for e-commerce sites
-                    # Adjust these selectors based on Jayagrocer's actual HTML structure
-                    price_selectors = [
-                        # Common e-commerce price selectors
-                        'span[class*="price"]',
-                        'div[class*="price"]',
-                        '.price',
-                        '[data-price]',
-                        'span.price',
-                        'div.price',
-                        # Malaysian currency format
-                        'span:contains("RM")',
-                        'div:contains("RM")',
-                    ]
                     
                     soup = BeautifulSoup(result.html, 'html.parser')
                     
@@ -233,7 +222,7 @@ class GroceryPriceSentinel:
         emoji = "📈" if new_price > old_price else "📉"
         
         message = (
-            f"{emoji} *Price Alert: {product_name}*\n\n"
+            f"<b>{direction}: {product_name}</b>\n\n"
             f"Old Price: RM {old_price:.2f}\n"
             f"New Price: RM {new_price:.2f}\n"
             f"Change: {pct_change:+.2f}%\n\n"
@@ -244,7 +233,6 @@ class GroceryPriceSentinel:
         payload = {
             "chat_id": self.telegram_chat_id,
             "text": message,
-            "parse_mode": "Markdown",
             "disable_web_page_preview": False
         }
         
@@ -253,8 +241,32 @@ class GroceryPriceSentinel:
             response.raise_for_status()
             logger.info(f"Sent Telegram alert for {product_name}")
         except Exception as e:
-            logger.error(f"Error sending Telegram alert: {e}")
+            logger.error(f"Telegram error: {e}")
+            if hasattr(e, "response"):
+                logger.error(e.response.text)
     
+    def send_new_product_alert(self, product_name:str, url: str) -> None:
+        message = (
+            f"🆕 <b>New product added</b>\n\n"
+            f"{product_name}\n\n"
+            f"{url}"
+        )
+
+        url_api = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
+
+        payload = {
+            "chat_id": self.telegram_chat_id,
+            "text": message,
+            "disable_web_page_preview": False
+        }
+
+        try:
+            httpx.post(url_api, json=payload, timeout=10).raise_for_status()
+            logger.info(f"Telegram new product alert sent: {product_name}")
+        except Exception as e:
+            logger.error(f"Telegram new product alert error: {e}")
+
+
     def check_prices(self) -> None:
         """Main function to check prices for all products."""
         logger.info("Starting price check...")
