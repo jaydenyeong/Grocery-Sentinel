@@ -1,5 +1,5 @@
-from dotenv import load_dotenv
-load_dotenv()
+# from dotenv import load_dotenv
+# load_dotenv()
 """
 Grocery Price Sentinel
 Monitors prices from Jayagrocer Malaysia and sends Telegram alerts on price changes.
@@ -58,8 +58,12 @@ class GroceryPriceSentinel:
             raise ValueError("GOOGLE_SHEETS_ID must be set")
         
         try:
-            with open("price-sentinel-487106-d7764ac80754.json", "r") as f:
-                creds_dict = json.load(f)
+            creds_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+
+            if not creds_json:
+                raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON must be set")
+
+            creds_dict = json.loads(creds_json)
             
             creds = Credentials.from_service_account_info(
                 creds_dict,
@@ -218,11 +222,10 @@ class GroceryPriceSentinel:
     def send_telegram_alert(self, product_name: str, old_price: Decimal, new_price: Decimal, 
                            pct_change: float, url: str) -> None:
         """Send Telegram notification about price change."""
-        direction = "📈 Increased" if new_price > old_price else "📉 Decreased"
         emoji = "📈" if new_price > old_price else "📉"
         
         message = (
-            f"<b>{direction}: {product_name}</b>\n\n"
+            f"<b>{emoji}: {product_name}</b>\n\n"
             f"Old Price: RM {old_price:.2f}\n"
             f"New Price: RM {new_price:.2f}\n"
             f"Change: {pct_change:+.2f}%\n\n"
@@ -265,7 +268,6 @@ class GroceryPriceSentinel:
             logger.info(f"Telegram new product alert sent: {product_name}")
         except Exception as e:
             logger.error(f"Telegram new product alert error: {e}")
-
 
     def check_prices(self) -> None:
         """Main function to check prices for all products."""
