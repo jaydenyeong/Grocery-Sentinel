@@ -22,15 +22,15 @@ Built to track Jayagrocer Malaysia products using web scraping, Supabase Postgre
 ## 🧱 Architecture
 
 Google Sheets (item + URL)
-↓
+→ 
 main.py
-↓
+→
 Supabase (products + price_history)
-↓
+→
 Crawl4AI Scraper
-↓
+→
 Price Comparison Logic
-↓
+→
 Telegram Bot Alerts
 
 
