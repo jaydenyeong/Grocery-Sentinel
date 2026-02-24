@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Price Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header class="header">
+    <h1>Price Tracker</h1>
+    <div class="controls">
+      <input id="searchInput" type="search" placeholder="Search products..." />
+      <button id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="table-wrap">
+      <table id="itemsTable">
+        <thead>
+          <tr>
+            <th data-key="product_name">Product Name</th>
+            <th data-key="store">Store</th>
+            <th data-key="current_price">Current Price</th>
+            <th data-key="previous_price">Previous Price</th>
+            <th data-key="price_change">Price Change</th>
+            <th data-key="percent_change">% Change</th>
+            <th data-key="last_updated">Last Updated</th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+    </div>
+
+    <section id="historyPanel" class="history hidden">
+      <h2 id="historyTitle">Price History</h2>
+      <canvas id="historyChart" height="120"></canvas>
+    </section>
+  </main>
+
+  <script src="components/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "^/$", "dest": "/frontend/index.html" },
+    { "src": "^/(styles\\.css)$", "dest": "/frontend/styles.css" },
+    { "src": "^/components/(.*)$", "dest": "/frontend/components/$1" },
+    { "src": "^/(.*)$", "dest": "/frontend/$1" }
+  ]
+}

@@ -1,5 +1,5 @@
-# from dotenv import load_dotenv
-# load_dotenv()
+from dotenv import load_dotenv
+load_dotenv()
 """
 Grocery Price Sentinel
 Monitors prices from Jayagrocer Malaysia and sends Telegram alerts on price changes.
