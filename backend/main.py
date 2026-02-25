@@ -19,7 +19,8 @@ app = FastAPI(title="Price Tracker API", version="1.0.0")
 
 allowed_origins = os.getenv(
     "CORS_ORIGINS",
-    "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:3000,http://localhost:3000"
+    "https://grocery-sentinel.vercel.app",
+    "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:3000,http://localhost:3000",
 ).split(",")
 
 app.add_middleware(
