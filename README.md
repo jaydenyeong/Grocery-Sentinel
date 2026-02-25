@@ -77,7 +77,7 @@ Frontend (Vercel):
 
 - Deploy the `frontend/` directory as a static site.
 - One-click repo-root config file is included at `vercel.json`
-- If backend URL is not local, set `window.API_BASE` before loading `components/app.js` in `frontend/index.html`, for example:
+- Set `window.API_BASE` before loading `components/app.js` so production deployments call the hosted API while local development keeps the fallback defined in `app.js`:
 
 ```html
 <script>
@@ -85,10 +85,17 @@ Frontend (Vercel):
 </script>
 ```
 
+- Double-check for typos in the URL; Vercel deployments will silently fall back to the local default (`http://127.0.0.1:8000`) if `window.API_BASE` is undefined or misspelled.
+
 #### Quick Deploy with Config Files
 
 - Render: create a new Blueprint service from this repo and Render will read `render.yaml`.
 - Vercel: import this repo and Vercel will apply `vercel.json` routes for the static frontend.
+
+#### Deployment Troubleshooting
+
+- **CORS / 503 from Vercel:** make sure the backend is awake and responding (use `curl -I -H "Origin: https://your-vercel-site.vercel.app" https://your-backend-domain.com/items`). A sleeping Render free instance answers with `503 Service Unavailable` before FastAPI can attach CORS headers, which looks like a CORS error in the browser.
+- **Keep Render awake (free):** add a free uptime monitor (UptimeRobot, Better Uptime, FreshPing) that hits `/health` every few minutes so the service stays warm and the frontend always gets data.
 
 ### Upload to GitHub (Safe)
 
