@@ -25,7 +25,7 @@ allowed_origins = os.getenv(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in allowed_origins if o.strip()],
+    allow_origins=["https://grocery-sentinel.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
