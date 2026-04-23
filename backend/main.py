@@ -55,13 +55,16 @@ def _direction(current_price: Decimal, previous_price: Decimal | None) -> str:
     return "same"
 
 
-def _group_latest_two_history(rows: list[dict[str, Any]]) -> dict[int, list[dict[str, Any]]]:
+def _group_latest_and_previous_different(rows: list[dict[str, Any]]) -> dict[int, list[dict[str, Any]]]:
     grouped: dict[int, list[dict[str, Any]]] = {}
+    latest_price: dict[int, Decimal] = {}
     for row in rows:
         product_id = int(row["product_id"])
+        price = _to_decimal(row["price"])
         if product_id not in grouped:
-            grouped[product_id] = []
-        if len(grouped[product_id]) < 2:
+            grouped[product_id] = [row]
+            latest_price[product_id] = price
+        elif len(grouped[product_id]) < 2 and price != latest_price[product_id]:
             grouped[product_id].append(row)
     return grouped
 
@@ -117,7 +120,7 @@ def get_items() -> list[ItemSummary]:
             .execute()
         )
         rows = history_result.data or []
-        history_by_product = _group_latest_two_history(rows)
+        history_by_product = _group_latest_and_previous_different(rows)
 
         items: list[ItemSummary] = []
         for product in products:
