@@ -117,7 +117,7 @@ async function loadHistory(itemId) {
     historyPanel.classList.remove("hidden");
     historyTitle.textContent = `Price History - ${data.product_name}`;
 
-    const labels = data.history.map((point) => new Date(point.scraped_at).toLocaleString());
+    const labels = data.history.map((point) => new Date(point.scraped_at).toLocaleDateString());
     const prices = data.history.map((point) => point.price);
 
     if (chart) chart.destroy();
