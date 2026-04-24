@@ -130,13 +130,46 @@ async function loadHistory(itemId) {
             label: "Price (RM)",
             data: prices,
             borderWidth: 2,
-            tension: 0.2,
+            tension: 0.25,
+            borderColor: "#4a7c59",
+            backgroundColor: "rgba(74, 124, 89, 0.12)",
+            pointBackgroundColor: "#2d5a3f",
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            fill: true,
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: "#1a2e28",
+              font: { family: "Inter, system-ui, sans-serif", size: 12 },
+            },
+          },
+          tooltip: {
+            backgroundColor: "#1a2e28",
+            titleFont: { family: "Inter, system-ui, sans-serif" },
+            bodyFont: { family: "Inter, system-ui, sans-serif" },
+            padding: 10,
+            cornerRadius: 8,
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: "rgba(26, 46, 40, 0.06)" },
+            ticks: { color: "#6b7a73", font: { family: "Inter, system-ui, sans-serif" } },
+          },
+          y: {
+            grid: { color: "rgba(26, 46, 40, 0.06)" },
+            ticks: { color: "#6b7a73", font: { family: "Inter, system-ui, sans-serif" } },
+          },
+        },
       },
     });
   } catch (error) {
