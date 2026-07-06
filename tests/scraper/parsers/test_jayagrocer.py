@@ -39,3 +39,8 @@ def test_parser_metadata(parser: JayaGrocerParser) -> None:
 def test_parse_price_strips_commas(parser: JayaGrocerParser) -> None:
     html = '<html><body><h1>X</h1><span class="price">RM 1,234.56</span></body></html>'
     assert parser.parse_price(html) == Decimal("1234.56")
+
+
+def test_parse_price_returns_none_on_unparseable_text(parser: JayaGrocerParser) -> None:
+    html = '<html><body><h1>X</h1><span class="price">RM abc</span></body></html>'
+    assert parser.parse_price(html) is None

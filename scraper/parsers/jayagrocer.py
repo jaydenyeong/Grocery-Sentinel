@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from bs4 import BeautifulSoup
 
@@ -20,7 +20,10 @@ class JayaGrocerParser(StoreParser):
             return None
         raw = price_el.get_text(strip=True)
         text = raw.replace("RM", "").replace(",", "").strip()
-        return Decimal(text)
+        try:
+            return Decimal(text)
+        except InvalidOperation:
+            return None
 
 
 register(JayaGrocerParser())
