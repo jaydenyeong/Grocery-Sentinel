@@ -8,6 +8,7 @@ from scraper.parsers.base import (
 
 # Importing each parser module registers it via a top-level register() call.
 from scraper.parsers import jayagrocer  # noqa: F401
+from scraper.parsers import lotuss  # noqa: F401
 
 __all__ = [
     "StoreParser",
