@@ -6,6 +6,9 @@ from scraper.parsers.base import (
     resolve_by_url,
 )
 
+# Importing each parser module registers it via a top-level register() call.
+from scraper.parsers import jayagrocer  # noqa: F401
+
 __all__ = [
     "StoreParser",
     "all_parsers",
