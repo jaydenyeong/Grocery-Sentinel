@@ -70,3 +70,29 @@ def test_resolve_by_url_is_case_insensitive_on_host() -> None:
     base.register(parser)
 
     assert base.resolve_by_url("https://ACME.com/p") is parser
+
+
+def test_multi_domain_parser_registration_is_atomic() -> None:
+    """Regression test: if a parser with multiple domains fails to register
+    due to a conflict on the second domain, the first domain should NOT be
+    partially registered."""
+    # Register a parser that owns "existing.com"
+    existing_parser = _FakeParser("existing", "Existing", ["existing.com"])
+    base.register(existing_parser)
+
+    # Try to register a new parser with two domains, where the second conflicts
+    conflicting_parser = _FakeParser("new", "New", ["new.com", "existing.com"])
+
+    # The registration should fail due to the conflict on "existing.com"
+    with pytest.raises(ValueError, match="existing.com"):
+        base.register(conflicting_parser)
+
+    # Neither of the conflicting parser's domains should be in the registry
+    assert base.resolve_by_url("https://new.com/p") is None
+    assert base.resolve_by_url("https://existing.com/p") is existing_parser
+
+    # The conflicting parser should not be in the slug registry
+    assert base.resolve_by_slug("new") is None
+
+    # The existing parser should still be accessible
+    assert base.resolve_by_slug("existing") is existing_parser

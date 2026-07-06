@@ -27,6 +27,7 @@ def register(parser: StoreParser) -> None:
         raise ValueError(
             f"Parser {parser!r} must define a slug and at least one domain",
         )
+    # Validate all domains for conflicts FIRST (before mutating anything)
     for domain in parser.domains:
         key = domain.lower()
         existing = _BY_DOMAIN.get(key)
@@ -34,6 +35,10 @@ def register(parser: StoreParser) -> None:
             raise ValueError(
                 f"Domain {key!r} is already registered by {existing.slug!r}",
             )
+
+    # If validation passed, commit all changes atomically
+    for domain in parser.domains:
+        key = domain.lower()
         _BY_DOMAIN[key] = parser
     _BY_SLUG[parser.slug] = parser
 
