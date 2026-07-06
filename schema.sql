@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS products (
     name TEXT NOT NULL,
     url TEXT NOT NULL UNIQUE,
     price NUMERIC(10, 2),
+    store TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -25,6 +26,8 @@ ON price_history(product_id, scraped_at DESC);
 
 -- Index for efficient product lookups by URL
 CREATE INDEX IF NOT EXISTS idx_products_url ON products(url);
+
+CREATE INDEX IF NOT EXISTS idx_products_store ON products(store);
 
 -- Trigger to update updated_at timestamp on products
 CREATE OR REPLACE FUNCTION update_updated_at_column()
