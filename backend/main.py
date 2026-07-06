@@ -4,15 +4,15 @@ import os
 import logging
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database import get_supabase_client
-from backend.models import ItemHistoryResponse, ItemSummary, PricePoint
+from backend.models import ItemHistoryResponse, ItemSummary, PricePoint, StoreInfo
+from scraper.parsers import all_parsers, resolve_by_slug
 
 logger = logging.getLogger(__name__)
 
-STORE_NAME = "JayaGrocer"
 ZERO = Decimal("0")
 
 app = FastAPI(title="Price Tracker API", version="1.0.0")
@@ -43,6 +43,11 @@ def _to_datetime(value: object) -> datetime:
     if not isinstance(value, str):
         raise ValueError("Invalid datetime value")
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _display_name(slug: str) -> str:
+    parser = resolve_by_slug(slug)
+    return parser.display_name if parser else slug
 
 
 def _direction(current_price: Decimal, previous_price: Decimal | None) -> str:
@@ -82,10 +87,13 @@ def _build_item_summary(product: dict[str, Any], product_history: list[dict[str,
     else:
         percent_change = (price_change / previous_price) * Decimal("100")
 
+    store_slug = str(product.get("store", ""))
+
     return ItemSummary(
         id=int(product["id"]),
         product_name=str(product["name"]),
-        store=STORE_NAME,
+        store=_display_name(store_slug),
+        store_slug=store_slug,
         current_price=float(current_price),
         previous_price=float(previous_price) if previous_price is not None else None,
         price_change=float(price_change),
@@ -101,16 +109,19 @@ def health() -> dict[str, str]:
 
 
 @app.get("/items", response_model=list[ItemSummary])
-def get_items() -> list[ItemSummary]:
+def get_items(store: str | None = Query(default=None)) -> list[ItemSummary]:
     try:
         supabase = get_supabase_client()
 
-        products_result = (
+        products_query = (
             supabase.table("products")
-            .select("id, name, url")
+            .select("id, name, url, store")
             .order("name", desc=False)
-            .execute()
         )
+        if store is not None:
+            products_query = products_query.eq("store", store)
+
+        products_result = products_query.execute()
         products = products_result.data or []
 
         history_result = (
@@ -137,13 +148,38 @@ def get_items() -> list[ItemSummary]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/stores", response_model=list[StoreInfo])
+def get_stores() -> list[StoreInfo]:
+    try:
+        supabase = get_supabase_client()
+
+        products_result = (
+            supabase.table("products")
+            .select("store")
+            .execute()
+        )
+        rows = products_result.data or []
+        slugs_in_db = {str(row["store"]) for row in rows if row.get("store")}
+
+        stores = [
+            StoreInfo(slug=parser.slug, display_name=parser.display_name)
+            for parser in all_parsers()
+            if parser.slug in slugs_in_db
+        ]
+        stores.sort(key=lambda s: s.display_name.lower())
+        return stores
+    except Exception as e:
+        logger.exception("GET /stores failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/history/{item_id}", response_model=ItemHistoryResponse)
 def get_history(item_id: int) -> ItemHistoryResponse:
     supabase = get_supabase_client()
 
     product_result = (
         supabase.table("products")
-        .select("id, name")
+        .select("id, name, store")
         .eq("id", item_id)
         .limit(1)
         .execute()
@@ -167,7 +203,7 @@ def get_history(item_id: int) -> ItemHistoryResponse:
     return ItemHistoryResponse(
         id=int(product["id"]),
         product_name=str(product["name"]),
-        store=STORE_NAME,
+        store=_display_name(str(product.get("store", ""))),
         history=[
             PricePoint(
                 price=float(_to_decimal(row["price"])),

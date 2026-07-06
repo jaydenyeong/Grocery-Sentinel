@@ -8,6 +8,7 @@ class ItemSummary(BaseModel):
     id: int
     product_name: str
     store: str
+    store_slug: str
     current_price: float
     previous_price: float | None
     price_change: float
@@ -26,3 +27,8 @@ class ItemHistoryResponse(BaseModel):
     product_name: str
     store: str
     history: list[PricePoint]
+
+
+class StoreInfo(BaseModel):
+    slug: str
+    display_name: str
