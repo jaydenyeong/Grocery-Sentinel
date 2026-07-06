@@ -21,6 +21,7 @@ from crawl4ai import AsyncWebCrawler
 import gspread
 from google.oauth2.service_account import Credentials
 from bs4 import BeautifulSoup
+from scraper.parsers import resolve_by_slug, resolve_by_url
 
 # Configure logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -123,15 +124,24 @@ class GroceryPriceSentinel:
                         else:
                             logger.debug(f"Product already exists: {item_name}")
                     else:
-                        # Insert new product
+                        # Attribute store from URL domain via the parser registry.
+                        parser = resolve_by_url(url)
+                        if parser is None:
+                            logger.error(
+                                f"No parser for URL, skipping product: {item_name} ({url})"
+                            )
+                            skipped_count += 1
+                            continue
+
                         self.supabase.table("products").insert({
                             "name": item_name,
-                            "url": url
+                            "url": url,
+                            "store": parser.slug,
                         }).execute()
                         logger.info(f"Added new product: {item_name} ({url})")
 
-                        # Telegram alert for new product
-                        self.send_new_product_alert(item_name, url)
+                        # Telegram alert for new product (with store display name).
+                        self.send_new_product_alert(item_name, url, parser.display_name)
                     
                     synced_count += 1
                 except Exception as e:
@@ -145,43 +155,27 @@ class GroceryPriceSentinel:
             raise
     
     def fetch_price(self, url: str) -> Optional[Decimal]:
-        """Fetch current price from Jayagrocer product page using Crawl4AI."""
+        """Fetch current price using the parser registered for this URL's domain."""
         logger.debug(f"Fetching price from: {url}")
-        
+
+        parser = resolve_by_url(url)
+        if parser is None:
+            logger.error(f"No parser registered for URL: {url}")
+            return None
+
         try:
             async def scrape_price():
                 async with AsyncWebCrawler(verbose=False) as crawler:
                     result = await crawler.arun(url=url)
-                    
+
                     if not result.success or not result.html:
                         logger.warning(f"Failed to fetch page: {url}")
                         return None
-                    
-                    
-                    soup = BeautifulSoup(result.html, 'html.parser')
-                    
-                    h1 = soup.find("h1")
 
-                    if not h1:
-                        logger.warning("No H1 product title found")
-                        return None
-                    
-                    price_el = h1.find_next("span",class_="price")
+                    return parser.parse_price(result.html)
 
-                    if not price_el:
-                        logger.warning(f"No price found after H1 for {url}")
-                        return None
-
-                    raw_price = price_el.get_text(strip=True)
-                    price_text = raw_price.replace("RM", "").replace(",", "").strip()
-
-                    return Decimal(price_text)
-
-
-            # Run async function
-            import asyncio
             return asyncio.run(scrape_price())
-        
+
         except Exception as e:
             logger.error(f"Error fetching price from {url}: {e}")
             return None
@@ -219,26 +213,33 @@ class GroceryPriceSentinel:
             logger.error(f"Error saving price for product {product_id}: {e}")
             raise
     
-    def send_telegram_alert(self, product_name: str, old_price: Decimal, new_price: Decimal, 
-                           pct_change: float, url: str) -> None:
+    def send_telegram_alert(
+        self,
+        product_name: str,
+        store_display_name: str,
+        old_price: Decimal,
+        new_price: Decimal,
+        pct_change: float,
+        url: str,
+    ) -> None:
         """Send Telegram notification about price change."""
         emoji = "📈" if new_price > old_price else "📉"
-        
+
         message = (
-            f"<b>{emoji}: {product_name}</b>\n\n"
+            f"<b>{emoji} {store_display_name}: {product_name}</b>\n\n"
             f"Old Price: RM {old_price:.2f}\n"
             f"New Price: RM {new_price:.2f}\n"
             f"Change: {pct_change:+.2f}%\n\n"
             f"[View Product]({url})"
         )
-        
+
         url_api = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
         payload = {
             "chat_id": self.telegram_chat_id,
             "text": message,
-            "disable_web_page_preview": False
+            "disable_web_page_preview": False,
         }
-        
+
         try:
             response = httpx.post(url_api, json=payload, timeout=10)
             response.raise_for_status()
@@ -247,10 +248,10 @@ class GroceryPriceSentinel:
             logger.error(f"Telegram error: {e}")
             if hasattr(e, "response"):
                 logger.error(e.response.text)
-    
-    def send_new_product_alert(self, product_name:str, url: str) -> None:
+
+    def send_new_product_alert(self, product_name: str, url: str, store_display_name: str) -> None:
         message = (
-            f"🆕 <b>New product added</b>\n\n"
+            f"🆕 <b>New product added</b> ({store_display_name})\n\n"
             f"{product_name}\n\n"
             f"{url}"
         )
@@ -260,7 +261,7 @@ class GroceryPriceSentinel:
         payload = {
             "chat_id": self.telegram_chat_id,
             "text": message,
-            "disable_web_page_preview": False
+            "disable_web_page_preview": False,
         }
 
         try:
@@ -275,7 +276,7 @@ class GroceryPriceSentinel:
         
         # Get all products
         try:
-            result = self.supabase.table("products").select("id, name, url, price").execute()
+            result = self.supabase.table("products").select("id, name, url, price, store").execute()
             products = result.data
         except Exception as e:
             logger.error(f"Error fetching products: {e}")
@@ -295,7 +296,10 @@ class GroceryPriceSentinel:
             product_id = product["id"]
             product_name = product["name"]
             product_url = product["url"]
-            
+            product_store_slug = product.get("store", "")
+            store_parser = resolve_by_slug(product_store_slug)
+            store_display_name = store_parser.display_name if store_parser else product_store_slug
+
             logger.info(f"Checking {product_name}...")
             
             # Fetch current price
@@ -321,7 +325,12 @@ class GroceryPriceSentinel:
                 # Check if change is significant
                 if price_diff > Decimal("0.01") and abs(pct_change) >= self.min_pct_change:
                     self.send_telegram_alert(
-                        product_name, old_price, new_price, pct_change, product_url
+                        product_name,
+                        store_display_name,
+                        old_price,
+                        new_price,
+                        pct_change,
+                        product_url,
                     )
                     changed_count += 1
                     logger.info(
