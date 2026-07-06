@@ -5,6 +5,7 @@ let items = [];
 let sortKey = "last_updated";
 let sortAsc = false;
 let chart;
+let activeStore = "";
 
 const itemsBody = document.getElementById("itemsBody");
 const searchInput = document.getElementById("searchInput");
@@ -12,6 +13,7 @@ const refreshBtn = document.getElementById("refreshBtn");
 const historyPanel = document.getElementById("historyPanel");
 const historyTitle = document.getElementById("historyTitle");
 const chartCanvas = document.getElementById("historyChart");
+const storeFilters = document.getElementById("storeFilters");
 
 function apiUrl(path) {
   return `${API_BASE}${path}`;
@@ -67,9 +69,14 @@ function compare(a, b) {
 
 function filteredItems() {
   const keyword = searchInput.value.trim().toLowerCase();
-  return items.filter(
-    (item) => item.product_name.toLowerCase().includes(keyword) || item.store.toLowerCase().includes(keyword),
-  ).sort(compare);
+  return items
+    .filter((item) => !activeStore || item.store_slug === activeStore)
+    .filter(
+      (item) =>
+        item.product_name.toLowerCase().includes(keyword) ||
+        item.store.toLowerCase().includes(keyword),
+    )
+    .sort(compare);
 }
 
 function renderTable() {
@@ -99,6 +106,31 @@ async function fetchJson(path) {
     throw new Error(`Request failed (${response.status}): ${body}`);
   }
   return response.json();
+}
+
+async function loadStores() {
+  try {
+    const stores = await fetchJson("/stores");
+    const chipsHtml = stores
+      .map(
+        (s) =>
+          `<button class="chip" data-slug="${s.slug}" type="button">${s.display_name}</button>`,
+      )
+      .join("");
+    storeFilters.insertAdjacentHTML("beforeend", chipsHtml);
+  } catch (error) {
+    console.error("Failed to load stores", error);
+  }
+}
+
+function handleChipClick(event) {
+  const chip = event.target.closest(".chip");
+  if (!chip) return;
+  activeStore = chip.dataset.slug || "";
+  storeFilters
+    .querySelectorAll(".chip")
+    .forEach((c) => c.classList.toggle("chip-active", c === chip));
+  renderTable();
 }
 
 async function loadItems() {
@@ -192,6 +224,7 @@ document.querySelectorAll("th[data-key]").forEach((th) => {
 
 searchInput.addEventListener("input", renderTable);
 refreshBtn.addEventListener("click", loadItems);
+storeFilters.addEventListener("click", handleChipClick);
 
 itemsBody.addEventListener("click", (event) => {
   const row = event.target.closest("tr[data-id]");
@@ -199,5 +232,6 @@ itemsBody.addEventListener("click", (event) => {
   loadHistory(row.dataset.id);
 });
 
+loadStores();
 loadItems();
 setInterval(loadItems, REFRESH_INTERVAL_MS);
